@@ -1,0 +1,33 @@
+# Starter Dependabot config. Copy to .github/dependabot.yml, keep the
+# ecosystems the repository uses, and delete the rest.
+#
+# Dependabot security updates are on for every repository in the organization.
+# This file adds routine version updates, grouped so each ecosystem opens one
+# pull request a week instead of one per package.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

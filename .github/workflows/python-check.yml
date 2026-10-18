@@ -1,0 +1,156 @@
+name: python-check
+
+# Reusable check for a Python project.
+#
+# Install:
+# - with uv.lock: `uv sync --all-extras --dev`;
+# - otherwise: requirements.txt and requirements-dev.txt when present, then the
+#   project itself (with its `dev` extra when it has one) when pyproject.toml
+#   declares a project or build system, or setup.py exists.
+#
+# Checks, unless `check-command` replaces them:
+# - Ruff, when it is installed or configured (ruff.toml, .ruff.toml or
+#   [tool.ruff]);
+# - mypy, when it is configured (mypy.ini, .mypy.ini or [tool.mypy]);
+# - pytest when it is installed, otherwise unittest discovery (from tests/
+#   when that folder exists).
+# It fails when no check ran.
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: Folder that holds the project.
+        type: string
+        default: "."
+      python-version:
+        description: Python version.
+        type: string
+        default: "3.12"
+      check-command:
+        description: Shell command that replaces the automatic checks. Install still runs first.
+        type: string
+        default: ""
+      env:
+        description: Extra non-secret environment variables for install and checks, one KEY=VALUE per line.
+        type: string
+        default: ""
+      timeout-minutes:
+        description: Job timeout.
+        type: number
+        default: 20
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: check
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Set extra environment
+        if: inputs.env != ''
+        env:
+          EXTRA_ENV: ${{ inputs.env }}
+        run: |
+          printf '%s\n' "$EXTRA_ENV" | while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            case "$line" in
+              *=*) printf '%s\n' "$line" >> "$GITHUB_ENV" ;;
+              *) echo "::error::env line is not KEY=VALUE: $line"; exit 1 ;;
+            esac
+          done
+
+      - name: Install
+        run: |
+          set -euo pipefail
+          if [ -f uv.lock ]; then
+            python -m pip install --quiet uv
+            uv sync --all-extras --dev
+            echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+            exit 0
+          fi
+
+          python -m pip install --quiet --upgrade pip
+          for file in requirements.txt requirements-dev.txt; do
+            if [ -f "$file" ]; then
+              python -m pip install -r "$file"
+            fi
+          done
+
+          if [ -f setup.py ] || { [ -f pyproject.toml ] && grep -Eq '^\[(project|build-system|tool\.poetry)\]' pyproject.toml; }; then
+            python -m pip install -e ".[dev]"
+          fi
+
+      - name: Check
+        env:
+          CHECK_COMMAND: ${{ inputs.check-command }}
+        run: |
+          set -euo pipefail
+          if [ -n "$CHECK_COMMAND" ]; then
+            bash -euo pipefail -c "$CHECK_COMMAND"
+            exit 0
+          fi
+
+          in_pyproject() {
+            [ -f pyproject.toml ] && grep -Eq "^\[tool\.$1(\]|\.)" pyproject.toml
+          }
+          ran=0
+
+          if command -v ruff >/dev/null 2>&1 || [ -f ruff.toml ] || [ -f .ruff.toml ] || in_pyproject ruff; then
+            command -v ruff >/dev/null 2>&1 || python -m pip install --quiet ruff
+            echo "::group::ruff check"
+            ruff check .
+            echo "::endgroup::"
+            ran=$((ran + 1))
+          fi
+
+          if [ -f mypy.ini ] || [ -f .mypy.ini ] || in_pyproject mypy; then
+            command -v mypy >/dev/null 2>&1 || python -m pip install --quiet mypy
+            echo "::group::mypy"
+            if grep -Eqs '^files[[:space:]]*=' mypy.ini .mypy.ini pyproject.toml; then
+              mypy
+            else
+              mypy .
+            fi
+            echo "::endgroup::"
+            ran=$((ran + 1))
+          fi
+
+          # pytest and unittest exit 5 when they find no tests.
+          status=0
+          if python -c 'import pytest' >/dev/null 2>&1; then
+            echo "::group::pytest"
+            python -m pytest || status=$?
+            echo "::endgroup::"
+          elif [ -d tests ]; then
+            echo "::group::unittest (tests/)"
+            python -m unittest discover -s tests -v || status=$?
+            echo "::endgroup::"
+          else
+            echo "::group::unittest"
+            python -m unittest discover -v || status=$?
+            echo "::endgroup::"
+          fi
+          case "$status" in
+            0) ran=$((ran + 1)) ;;
+            5) echo "No tests found." ;;
+            *) exit "$status" ;;
+          esac
+
+          if [ "$ran" -eq 0 ]; then
+            echo "::error::No lint, type check or tests ran, so there is nothing to check."
+            exit 1
+          fi
