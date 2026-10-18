@@ -1,0 +1,107 @@
+name: node-check
+
+# Reusable check for an npm project.
+#
+# Runs `npm ci`, then `npm run check` when package.json has a `check` script.
+# Without one, it runs each of `lint`, `typecheck`, `test` and `build` that
+# exists, in that order, skipping npm's placeholder test script. It fails when
+# none of these scripts exists, so a repository can't pass by checking nothing.
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: Folder that holds package.json and package-lock.json.
+        type: string
+        default: "."
+      node-version:
+        description: Node.js version. Ignored when node-version-file is set.
+        type: string
+        default: "24"
+      node-version-file:
+        description: File that names the Node.js version, such as .nvmrc, relative to the repository root.
+        type: string
+        default: ""
+      env:
+        description: Extra non-secret environment variables for install and checks, one KEY=VALUE per line.
+        type: string
+        default: ""
+      timeout-minutes:
+        description: Job timeout.
+        type: number
+        default: 20
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: check
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ inputs.node-version-file == '' && inputs.node-version || '' }}
+          node-version-file: ${{ inputs.node-version-file }}
+          cache: npm
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+
+      - name: Set extra environment
+        if: inputs.env != ''
+        env:
+          EXTRA_ENV: ${{ inputs.env }}
+        run: |
+          printf '%s\n' "$EXTRA_ENV" | while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            case "$line" in
+              *=*) printf '%s\n' "$line" >> "$GITHUB_ENV" ;;
+              *) echo "::error::env line is not KEY=VALUE: $line"; exit 1 ;;
+            esac
+          done
+
+      - name: Install
+        run: npm ci
+
+      - name: Check
+        run: |
+          set -euo pipefail
+          script_of() {
+            node -p 'const s = require("./package.json").scripts || {}; s[process.argv[1]] || ""' "$1"
+          }
+
+          if [ -n "$(script_of check)" ]; then
+            npm run check
+            exit 0
+          fi
+
+          ran=0
+          for name in lint typecheck test build; do
+            body="$(script_of "$name")"
+            if [ -z "$body" ]; then
+              echo "No \"$name\" script; skipped."
+              continue
+            fi
+            case "$body" in
+              *"no test specified"*)
+                echo "\"$name\" is npm's placeholder script; skipped."
+                continue
+                ;;
+            esac
+            echo "::group::npm run $name"
+            npm run "$name"
+            echo "::endgroup::"
+            ran=$((ran + 1))
+          done
+
+          if [ "$ran" -eq 0 ]; then
+            echo "::error::package.json has no check, lint, typecheck, test or build script, so there is nothing to check."
+            exit 1
+          fi

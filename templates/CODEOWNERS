@@ -1,0 +1,18 @@
+# Starter CODEOWNERS. Copy to .github/CODEOWNERS and replace the owners.
+#
+# Each line is a path pattern followed by one or more owners (@user or
+# @org/team). The last matching line wins. Owners are asked to review pull
+# requests that touch matching files; a ruleset can make that review required.
+
+# Everything: the team that owns this repository.
+*                   @164investments/engineering
+
+# CI, workflows and repository settings.
+/.github/           @164investments/engineering
+
+# Interfaces other systems call, such as API contracts and webhooks.
+# /contracts/       @164investments/engineering
+# /app/api/         @164investments/engineering
+
+# Database migrations, when a repository is allowed to hold them.
+# /supabase/migrations/  @164investments/engineering
