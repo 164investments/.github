@@ -82,7 +82,7 @@ jobs:
 
       - name: Wait for the database
         run: |
-          for attempt in $(seq 1 60); do
+          for _ in $(seq 1 60); do
             if psql -X -tAc 'select 1' >/dev/null 2>&1; then
               psql -X -tAc 'select version()'
               exit 0
