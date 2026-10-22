@@ -1,7 +1,14 @@
-# Fixture for the runners self-test: every job here passes the check.
+# Fixture for the runners self-test: every job and trigger here passes the check.
 name: fixture
 
-on: pull_request
+on:
+  pull_request:
+  push:
+    branches: [main, staging]
+
+concurrency:
+  group: fixture-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   small:
