@@ -14,8 +14,11 @@ Call them from a repository's own workflow. Pin to `@main`, or to a commit SHA f
 | `python-check.yml` | Installs the project, then runs Ruff, mypy when configured, and pytest or unittest. A `check-command` input replaces the automatic steps. |
 | `gitleaks.yml` | Scans for committed secrets with the gitleaks CLI. Pull requests scan their own commits, pushes scan the pushed commits, and other events scan the whole history. Findings are redacted in the log. |
 | `supabase-migrations.yml` | Replays every `.sql` file in the migrations folder, in file-name order, into a throwaway Postgres 17 service container. The default image is Supabase's Postgres image, so the `auth` and `storage` schemas and the standard roles exist. |
+| `runners.yml` | Fails when a job in the caller's `.github/workflows` runs off a Blacksmith runner. A job that cannot run on Blacksmith keeps its runner with `# github-runner: <reason>` on the same line. |
 
-Each workflow's job is named `check`, `gitleaks` or `supabase-migrations`, so a caller job named `check` shows up as `check / check`.
+Each workflow's job is named `check`, `gitleaks`, `supabase-migrations` or `runners`, so a caller job named `check` shows up as `check / check`.
+
+Every workflow runs on a Blacksmith runner (`blacksmith-2vcpu-ubuntu-2404`) unless the caller passes a `runner` input. A public repository can pass `runner: ubuntu-latest`, which GitHub runs free. Jobs a repository writes itself use the same Blacksmith labels, and `runners.yml` checks them.
 
 ### Example
 
@@ -43,6 +46,9 @@ jobs:
     uses: 164investments/.github/.github/workflows/supabase-migrations.yml@main
     with:
       migrations-path: supabase/migrations
+
+  runners:
+    uses: 164investments/.github/.github/workflows/runners.yml@main
 ```
 
 The inputs of each workflow are listed and described at the top of its file.

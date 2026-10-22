@@ -19,6 +19,10 @@ name: python-check
 on:
   workflow_call:
     inputs:
+      runner:
+        description: Runner label. Private repositories run on Blacksmith; a public repository can pass ubuntu-latest, which GitHub runs free.
+        type: string
+        default: blacksmith-2vcpu-ubuntu-2404
       working-directory:
         description: Folder that holds the project.
         type: string
@@ -46,7 +50,7 @@ permissions:
 jobs:
   check:
     name: check
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner }}
     timeout-minutes: ${{ inputs.timeout-minutes }}
     defaults:
       run:
