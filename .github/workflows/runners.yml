@@ -3,6 +3,13 @@ name: runners
 # Fails when a job in the calling repository's workflows runs on anything other
 # than a Blacksmith runner. A job that cannot run on Blacksmith keeps its runner
 # with "# github-runner: <reason>" on the same line.
+#
+# Also fails a workflow that runs CI twice for one change: a push trigger on
+# every branch or on a branch pattern such as feat/** (the pull request already
+# tests those branches), or a pull-request workflow that lets a superseded run
+# keep going. Named branches such as main, staging or release stay allowed. A
+# workflow that must finish every run (an experiment that keeps each result)
+# writes "# ci-keep-runs: <reason>" on its cancel-in-progress line.
 
 on:
   workflow_call:
@@ -40,3 +47,63 @@ jobs:
             echo "::error file=$file,line=$line::Use runs-on: blacksmith-2vcpu-ubuntu-2404, or blacksmith-4vcpu-ubuntu-2404 for a long multi-core job. A job that cannot run on Blacksmith keeps its runner with '# github-runner: <reason>' on the same line."
           done <<< "$bad"
           exit 1
+      - name: Each change runs CI once
+        if: ${{ !cancelled() }}
+        env:
+          WORKFLOWS: ${{ inputs.workflows-path }}
+        run: |
+          python3 -c 'import yaml' 2>/dev/null || {
+            python3 -m venv "$RUNNER_TEMP/yaml" && "$RUNNER_TEMP/yaml/bin/pip" install --quiet pyyaml==6.0.3
+            PATH="$RUNNER_TEMP/yaml/bin:$PATH"
+          }
+          python3 - <<'PY'
+          import os
+          import re
+          import sys
+          from pathlib import Path
+
+          import yaml
+
+          folder = Path(os.environ["WORKFLOWS"])
+          errors = 0
+
+
+          def report(path, text, pattern, message):
+              global errors
+              errors += 1
+              match = re.search(pattern, text, re.M)
+              line = text[: match.start()].count("\n") + 1 if match else 1
+              print(f"::error file={path},line={line}::{message}")
+
+
+          for path in sorted([*folder.glob("*.yml"), *folder.glob("*.yaml")]):
+              text = path.read_text()
+              doc = yaml.safe_load(text) or {}
+              # YAML 1.1 reads the bare key `on` as True.
+              on = doc.get("on", doc.get(True)) or {}
+              if isinstance(on, str):
+                  on = {on: None}
+              elif isinstance(on, list):
+                  on = dict.fromkeys(on)
+
+              if "push" in on:
+                  push = on["push"] or {}
+                  branches = push.get("branches") or []
+                  if "branches-ignore" in push or not (branches or push.get("tags")):
+                      report(path, text, r"^\s*push\b", "This push trigger runs on every branch, so each pull-request push is tested twice. Limit it with branches: to the default branch or a named deploy branch.")
+                  for branch in branches:
+                      if re.search(r"[*?\[!]", str(branch)):
+                          report(path, text, r"^\s*branches:.*" + re.escape(str(branch)) + r"|^\s*-\s*['\"]?" + re.escape(str(branch)), f"The push trigger matches feature branches ({branch}), whose pull requests already run CI. Name the default branch or a deploy branch instead.")
+
+              if "pull_request" in on or "pull_request_target" in on:
+                  jobs = [j for j in (doc.get("jobs") or {}).values() if isinstance(j, dict)]
+
+                  def cancels(block):
+                      return isinstance(block, dict) and block.get("cancel-in-progress") not in (None, False, "false")
+
+                  kept = re.search(r"cancel-in-progress:.*#\s*ci-keep-runs:\s*\S", text)
+                  if not kept and not cancels(doc.get("concurrency")) and not (jobs and all(cancels(j.get("concurrency")) for j in jobs)):
+                      report(path, text, r"^\s*(pull_request|concurrency)\b", "A pull request's older run keeps going after a new push. Add a workflow concurrency group keyed on the pull request with cancel-in-progress set.")
+
+          sys.exit(1 if errors else 0)
+          PY
