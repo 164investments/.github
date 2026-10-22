@@ -16,6 +16,10 @@ name: gitleaks
 on:
   workflow_call:
     inputs:
+      runner:
+        description: Runner label. Private repositories run on Blacksmith; a public repository can pass ubuntu-latest, which GitHub runs free.
+        type: string
+        default: blacksmith-2vcpu-ubuntu-2404
       mode:
         description: auto, history or tree.
         type: string
@@ -39,7 +43,7 @@ permissions:
 jobs:
   gitleaks:
     name: gitleaks
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner }}
     timeout-minutes: ${{ inputs.timeout-minutes }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

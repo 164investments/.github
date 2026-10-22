@@ -1,7 +1,8 @@
 name: self-test
 
 # Calls every reusable workflow against the fixtures in tests/fixtures, and
-# lints every workflow file. Required before merge.
+# lints every workflow file. Required before merge. This repository is public,
+# so its own runs use GitHub's free runners (runner: ubuntu-latest).
 
 on:
   pull_request:
@@ -43,12 +44,14 @@ jobs:
     name: node-check (check script)
     uses: ./.github/workflows/node-check.yml
     with:
+      runner: ubuntu-latest
       working-directory: tests/fixtures/node-check-script
 
   node-scripts:
     name: node-check (separate scripts)
     uses: ./.github/workflows/node-check.yml
     with:
+      runner: ubuntu-latest
       working-directory: tests/fixtures/node-scripts
       env: |
         FIXTURE_FLAG=1
@@ -57,12 +60,14 @@ jobs:
     name: python-check
     uses: ./.github/workflows/python-check.yml
     with:
+      runner: ubuntu-latest
       working-directory: tests/fixtures/python-project
 
   python-command:
     name: python-check (check-command)
     uses: ./.github/workflows/python-check.yml
     with:
+      runner: ubuntu-latest
       working-directory: tests/fixtures/python-project
       python-version: "3.9"
       check-command: python -m unittest discover -s tests -v
@@ -70,23 +75,35 @@ jobs:
   gitleaks:
     name: gitleaks
     uses: ./.github/workflows/gitleaks.yml
+    with:
+      runner: ubuntu-latest
 
   gitleaks-history:
     name: gitleaks (history)
     uses: ./.github/workflows/gitleaks.yml
     with:
+      runner: ubuntu-latest
       mode: history
 
   migrations:
     name: supabase-migrations
     uses: ./.github/workflows/supabase-migrations.yml
     with:
+      runner: ubuntu-latest
       migrations-path: tests/fixtures/migrations
 
   migrations-plain-postgres:
     name: supabase-migrations (plain Postgres)
     uses: ./.github/workflows/supabase-migrations.yml
     with:
+      runner: ubuntu-latest
       migrations-path: tests/fixtures/migrations
       image: postgres:17
       prelude: tests/fixtures/supabase-shape.sql
+
+  runners:
+    name: runners
+    uses: ./.github/workflows/runners.yml
+    with:
+      runner: ubuntu-latest
+      workflows-path: tests/fixtures/runners

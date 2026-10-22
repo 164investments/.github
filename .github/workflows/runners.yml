@@ -1,0 +1,42 @@
+name: runners
+
+# Fails when a job in the calling repository's workflows runs on anything other
+# than a Blacksmith runner. A job that cannot run on Blacksmith keeps its runner
+# with "# github-runner: <reason>" on the same line.
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: Runner label for this check. A public repository can pass ubuntu-latest, which GitHub runs free.
+        type: string
+        default: blacksmith-2vcpu-ubuntu-2404
+      workflows-path:
+        description: Folder of workflow files to check, relative to the repository root.
+        type: string
+        default: .github/workflows
+
+permissions:
+  contents: read
+
+jobs:
+  runners:
+    name: runners
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Every job runs on a Blacksmith runner
+        env:
+          WORKFLOWS: ${{ inputs.workflows-path }}
+        run: |
+          bad=$(grep -nE '^[[:space:]]+runs-on:' "$WORKFLOWS"/*.y*ml \
+            | grep -vE "runs-on:[[:space:]]*['\"]?blacksmith-" \
+            | grep -vE '#[[:space:]]*github-runner:[[:space:]]*[^[:space:]]' || true)
+          [ -z "$bad" ] && exit 0
+          while IFS=: read -r file line _; do
+            echo "::error file=$file,line=$line::Use runs-on: blacksmith-2vcpu-ubuntu-2404, or blacksmith-4vcpu-ubuntu-2404 for a long multi-core job. A job that cannot run on Blacksmith keeps its runner with '# github-runner: <reason>' on the same line."
+          done <<< "$bad"
+          exit 1

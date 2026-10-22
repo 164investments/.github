@@ -1,0 +1,18 @@
+# Fixture for the runners self-test: every job here passes the check.
+name: fixture
+
+on: pull_request
+
+jobs:
+  small:
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    steps:
+      - run: echo small
+  large:
+    runs-on: 'blacksmith-4vcpu-ubuntu-2404'
+    steps:
+      - run: echo large
+  exception:
+    runs-on: ubuntu-latest # github-runner: needs a kernel feature the fixture names
+    steps:
+      - run: echo exception
