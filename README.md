@@ -69,6 +69,8 @@ To skip a push's second run of checks its pull request already passed, call `alr
     uses: 164investments/.github/.github/workflows/node-check.yml@main
 ```
 
+Give every job further down the chain a status function as well (`if: ${{ !cancelled() && ... }}`). A bare `if:` implies `success()` of the whole chain, and `tested` is skipped on every pull request, so those jobs would be skipped too.
+
 The inputs of each workflow are listed and described at the top of its file.
 
 ## Default community files
