@@ -63,11 +63,13 @@ jobs:
       runner: ubuntu-latest
       working-directory: tests/fixtures/python-project
 
+  # Python 3.9, the oldest the team-agents scripts support, has no build for
+  # Ubuntu 26.04, which ubuntu-latest became on 2026-10-21.
   python-command:
     name: python-check (check-command)
     uses: ./.github/workflows/python-check.yml
     with:
-      runner: ubuntu-latest
+      runner: ubuntu-24.04
       working-directory: tests/fixtures/python-project
       python-version: "3.9"
       check-command: python -m unittest discover -s tests -v
