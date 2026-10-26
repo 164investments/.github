@@ -63,11 +63,13 @@ jobs:
       runner: ubuntu-latest
       working-directory: tests/fixtures/python-project
 
+  # Python 3.9, the oldest the team-agents scripts support, has no build for
+  # Ubuntu 26.04, which ubuntu-latest became on 2026-10-21.
   python-command:
     name: python-check (check-command)
     uses: ./.github/workflows/python-check.yml
     with:
-      runner: ubuntu-latest
+      runner: ubuntu-24.04
       working-directory: tests/fixtures/python-project
       python-version: "3.9"
       check-command: python -m unittest discover -s tests -v
@@ -107,3 +109,27 @@ jobs:
     with:
       runner: ubuntu-latest
       workflows-path: tests/fixtures/runners
+
+  already-tested:
+    name: already-tested
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    uses: ./.github/workflows/already-tested.yml
+    with:
+      runner: ubuntu-latest
+
+  # A pull request's own run is never already tested; on a push to main the
+  # answer depends on that push, so only the pull request asserts it.
+  already-tested-answer:
+    name: already-tested (a pull request runs its checks)
+    if: github.event_name == 'pull_request'
+    needs: already-tested
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: The answer is false
+        env:
+          TESTED: ${{ needs.already-tested.outputs.tested }}
+        run: test "$TESTED" = false
