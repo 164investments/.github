@@ -21,6 +21,12 @@ name: already-tested
 #   check:
 #     needs: tested
 #     if: ${{ !cancelled() && needs.tested.outputs.tested != 'true' }}
+#
+# Every job below it in the chain needs a status function too, such as
+# `if: ${{ !cancelled() && ... }}`. A bare condition implies success() of the
+# whole chain, and `tested` is skipped on every pull request, so those jobs
+# would skip there too, and an aggregate check that accepts skipped jobs
+# would pass without running them.
 
 on:
   workflow_call:
