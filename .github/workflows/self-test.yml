@@ -107,3 +107,27 @@ jobs:
     with:
       runner: ubuntu-latest
       workflows-path: tests/fixtures/runners
+
+  already-tested:
+    name: already-tested
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    uses: ./.github/workflows/already-tested.yml
+    with:
+      runner: ubuntu-latest
+
+  # A pull request's own run is never already tested; on a push to main the
+  # answer depends on that push, so only the pull request asserts it.
+  already-tested-answer:
+    name: already-tested (a pull request runs its checks)
+    if: github.event_name == 'pull_request'
+    needs: already-tested
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: The answer is false
+        env:
+          TESTED: ${{ needs.already-tested.outputs.tested }}
+        run: test "$TESTED" = false

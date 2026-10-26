@@ -1,0 +1,87 @@
+name: already-tested
+
+# Reusable check for a push to a branch: did the calling workflow already pass
+# on this exact tree, in the pull request that the push merged? A pull request
+# tests its branch, so a push to main that only lands that branch would run
+# the same checks a second time (SIM-208).
+#
+# `tested` is true only when the pushed commit came from a merged pull request
+# inside this repository, the pull request's head has the same tree as the
+# pushed commit, and a pull_request run of the calling workflow file passed
+# on that head. Anything else, including a failed
+# lookup, is false, so the caller runs its checks as before. A merge that
+# brought in commits the branch never had changes the tree, so it is tested.
+#
+# Call it only on push, and run the other jobs unless it says tested:
+#
+#   tested:
+#     if: github.event_name == 'push'
+#     permissions: { actions: read, contents: read, pull-requests: read }
+#     uses: 164investments/.github/.github/workflows/already-tested.yml@main
+#   check:
+#     needs: tested
+#     if: ${{ !cancelled() && needs.tested.outputs.tested != 'true' }}
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: Runner label. A public repository can pass ubuntu-latest, which GitHub runs free.
+        type: string
+        default: blacksmith-2vcpu-ubuntu-2404
+    outputs:
+      tested:
+        description: "'true' when this tree already passed the calling workflow on its pull request."
+        value: ${{ jobs.already-tested.outputs.tested }}
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+
+jobs:
+  already-tested:
+    name: already-tested
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 3
+    outputs:
+      tested: ${{ steps.check.outputs.tested }}
+    steps:
+      - name: Look for a passing pull-request run on this tree
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          EVENT: ${{ github.event_name }}
+          # The caller's file: in a called workflow, github.workflow_ref is
+          # the caller's, as owner/repo/.github/workflows/name.yml@ref.
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+        run: |
+          set -uo pipefail
+          answer() {
+            echo "tested=$1" >> "$GITHUB_OUTPUT"
+            echo "$2"
+            echo "$2" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          }
+          [ "$EVENT" = "push" ] || answer false "Not a push, so the checks run."
+          workflow=${WORKFLOW_REF#"$REPO/"}
+          workflow=${workflow%%@*}
+          tree=$(gh api "repos/$REPO/git/commits/$SHA" --jq .tree.sha) \
+            || answer false "Could not read commit $SHA, so the checks run."
+          pulls=$(gh api "repos/$REPO/commits/$SHA/pulls" \
+            --jq '.[] | select(.merged_at != null and .head.repo.full_name == .base.repo.full_name) | "\(.number) \(.head.sha)"') \
+            || answer false "Could not list the pull requests for $SHA, so the checks run."
+          while read -r number head; do
+            [ -n "$number" ] || continue
+            head_tree=$(gh api "repos/$REPO/git/commits/$head" --jq .tree.sha) || continue
+            [ "$head_tree" = "$tree" ] || continue
+            # A run's pull_requests list empties once the pull request merges,
+            # so the head commit, the event and the workflow file identify it.
+            run=$(gh api "repos/$REPO/actions/runs?head_sha=$head&event=pull_request&status=success&per_page=100" \
+              | jq -r --arg path "$workflow" '[.workflow_runs[] | select(.path == $path)][0].html_url // empty') \
+              || continue
+            [ -n "$run" ] && answer true "This tree already passed $workflow on pull request #$number ($run), so its checks are skipped."
+          done <<< "$pulls"
+          answer false "No passing pull-request run of $workflow has this tree, so the checks run."
