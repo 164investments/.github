@@ -55,20 +55,24 @@ jobs:
           fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
 
+      # Checkout, install and the format check run for docs-only changes
+      # too when the formatter covers Markdown, so a docs change can't leave
+      # main failing the next pull request's format check. If it doesn't
+      # cover Markdown, give these steps the same `if:` as the ones below.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: steps.scope.outputs.code == 'true'
         with:
           persist-credentials: false
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        if: steps.scope.outputs.code == 'true'
         with:
           node-version: 24
           cache: npm
 
       - name: Install
-        if: steps.scope.outputs.code == 'true'
         run: npm ci
+
+      - name: Format
+        run: npm run format:check
 
       # The only type check: the deploy's build skips it (for Next.js,
       # typescript.ignoreBuildErrors in next.config).

@@ -77,10 +77,11 @@ jobs:
           done <<< "$files"
           printf 'web=%s\nworker=%s\n' "$web" "$worker" | tee -a "$GITHUB_OUTPUT"
 
-  # Small checks share one job, so they pay for one install.
+  # Small checks share one job, so they pay for one install. It runs for every
+  # pull request, docs-only ones included, because the format check covers
+  # Markdown; the code checks below skip when only docs changed.
   static:
     needs: changes
-    if: needs.changes.outputs.web == 'true'
     runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 10
     steps:
@@ -96,8 +97,10 @@ jobs:
         run: npm run format:check
       # The only type check: the deploy's build skips it.
       - name: Type check
+        if: needs.changes.outputs.web == 'true'
         run: npm run typecheck
       - name: Lint
+        if: needs.changes.outputs.web == 'true'
         run: npm run lint
 
   test:

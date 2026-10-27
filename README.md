@@ -93,8 +93,8 @@ GitHub doesn't apply these by default, so copy them into a repository and edit t
 Every check runs before merge, once per finished change, and the deploy only ships what CI already checked.
 
 - One workflow, `.github/workflows/ci.yml`, runs on a ready pull request: the type check, lint, tests and the exact build the deploy runs. A draft runs nothing. Workflows that are not pull-request checks (schedules, deploys, releases) keep their own files.
-- `templates/ci.yml` is for a repository whose checks fit one job of a few minutes. That job is `check`; its first step skips the rest when the pull request changes only top-level Markdown or Markdown under `docs/`.
-- `templates/ci-jobs.yml` is for several jobs. A `changes` job reads the pull request's file list and each job runs only when its files change; a path no rule names, and every event that is not a pull request, runs everything. A `check` job always runs and passes when every job passed or was skipped.
+- `templates/ci.yml` is for a repository whose checks fit one job of a few minutes. That job is `check`. When the pull request changes only top-level Markdown or Markdown under `docs/`, it runs only the format check, which covers Markdown, and skips the type check, lint, tests and build.
+- `templates/ci-jobs.yml` is for several jobs. A `changes` job reads the pull request's file list and each job runs only when its files change; a path no rule names, and every event that is not a pull request, runs everything. The small checks share one job that also runs for docs-only changes, for the format check. A `check` job always runs and passes when every job passed or was skipped.
 - Require `check` on the default branch. Filter jobs, never the workflow: a workflow-level `paths` filter leaves a required check waiting forever.
 - Type-check once, in CI. A Next.js app sets `typescript: { ignoreBuildErrors: true }` in `next.config`, and no `build` script chains a type check.
 - Vercel builds only the production branch. In the `vercel.json` at the project's root directory:
