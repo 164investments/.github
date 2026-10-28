@@ -73,6 +73,26 @@ Give every job further down the chain a status function as well (`if: ${{ !cance
 
 The inputs of each workflow are listed and described at the top of its file.
 
+## Shared steps
+
+| Step | What it does |
+| --- | --- |
+| `actions/stop-after-failures` | On a pull request, fails the job before anything else runs when the same workflow's last 2 finished runs on that pull request failed. Cancelled and skipped runs don't count, a passing run starts the count again, and a failed lookup lets CI run. A person lifts it for one pull request with the `ci-retry` label. Inputs: `limit` (default 2, 0 turns it off), `label` and `token`. |
+
+Put it first in the job every other job depends on, and give that job `actions: read`:
+
+```yaml
+  changes:
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: 164investments/.github/actions/stop-after-failures@main
+```
+
+That job fails, so the aggregate `check` fails with it. Don't put it in a job whose failure would only skip the required check: GitHub counts a skipped required check as passed. Create the `ci-retry` label in the repository so a person can add it.
+
 ## Default community files
 
 GitHub uses these for any repository in the organization that has no file of its own:
@@ -95,6 +115,7 @@ Every check runs before merge, once per finished change, and the deploy only shi
 - One workflow, `.github/workflows/ci.yml`, runs on a ready pull request: the type check, lint, tests and the exact build the deploy runs. A draft runs nothing. Workflows that are not pull-request checks (schedules, deploys, releases) keep their own files.
 - `templates/ci.yml` is for a repository whose checks fit one job of a few minutes. That job is `check`. When the pull request changes only top-level Markdown or Markdown under `docs/`, it runs only the format check, which covers Markdown, and skips the type check, lint, tests and build.
 - `templates/ci-jobs.yml` is for several jobs. A `changes` job reads the pull request's file list and each job runs only when its files change; a path no rule names, and every event that is not a pull request, runs everything. The small checks share one job that also runs for docs-only changes, for the format check. A `check` job always runs and passes when every job passed or was skipped.
+- After a pull request's last 2 runs failed, the first job stops (`actions/stop-after-failures`, above) until a person adds `ci-retry`. CI checks a finished fix; it is not where an author finds one.
 - Require `check` on the default branch. Filter jobs, never the workflow: a workflow-level `paths` filter leaves a required check waiting forever.
 - Type-check once, in CI. A Next.js app sets `typescript: { ignoreBuildErrors: true }` in `next.config`, and no `build` script chains a type check.
 - Vercel builds only the production branch. In the `vercel.json` at the project's root directory:

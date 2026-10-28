@@ -133,3 +133,36 @@ jobs:
         env:
           TESTED: ${{ needs.already-tested.outputs.tested }}
         run: test "$TESTED" = false
+
+  stop-after-failures-tests:
+    name: stop-after-failures (unit tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Counting rule and decisions
+        run: python3 -m unittest discover -s tests/stop-after-failures -v
+
+  # Runs the step against this workflow's own runs, so the lookup is proven
+  # against GitHub's API. A failed lookup only warns, so assert a count came
+  # back. On a push the step does nothing and reports no count.
+  stop-after-failures:
+    name: stop-after-failures
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: stop
+        uses: ./actions/stop-after-failures
+      - name: The earlier runs were read
+        if: github.event_name == 'pull_request'
+        env:
+          FAILED: ${{ steps.stop.outputs.failed }}
+        run: '[[ "$FAILED" =~ ^[0-9]+$ ]]'

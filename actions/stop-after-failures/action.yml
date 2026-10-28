@@ -1,0 +1,48 @@
+name: stop-after-failures
+description: >-
+  Fails a pull request's CI run before its checks start when the same
+  workflow's last runs on that pull request failed several times in a row, so
+  CI checks a fix instead of being the place to find one.
+
+# Put it first in the job every check depends on (`changes`, or the only job),
+# and give that job `actions: read`. That job then fails, so the required check
+# fails too. Never put it where a failure would only skip the required check:
+# GitHub counts a skipped required check as passed.
+#
+#   permissions:
+#     actions: read
+#     contents: read
+#     pull-requests: read
+#   steps:
+#     - uses: 164investments/.github/actions/stop-after-failures@main
+#
+# Only pull-request runs are checked. A cancelled or skipped run doesn't count,
+# a passing run starts the count again, and a failed lookup lets CI run.
+
+inputs:
+  limit:
+    description: Failed runs in a row after which CI stops. 0 turns the step off.
+    default: "2"
+  label:
+    description: Pull-request label that lets CI run again. Only a person should add it.
+    default: ci-retry
+  token:
+    description: "Token that can read the repository's Actions runs (`actions: read`)."
+    default: ${{ github.token }}
+
+outputs:
+  failed:
+    description: Failed runs in a row before this one, or empty when they could not be read.
+    value: ${{ steps.check.outputs.failed }}
+
+runs:
+  using: composite
+  steps:
+    - name: Stop after repeated failures
+      id: check
+      shell: bash
+      env:
+        TOKEN: ${{ inputs.token }}
+        LIMIT: ${{ inputs.limit }}
+        LABEL: ${{ inputs.label }}
+      run: python3 "$GITHUB_ACTION_PATH/stop_after_failures.py"
