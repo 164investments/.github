@@ -45,6 +45,11 @@ class FailedInARow(unittest.TestCase):
         old = {"id": 1, "status": "completed", "conclusion": "failure", "created_at": "2026-10-26T09:00:00Z"}
         self.assertEqual(failed_in_a_row([old, run(2, "failure", 2)], 99, PR["created_at"]), 1)
 
+    def test_ignores_a_fork_branch_with_the_same_name(self):
+        ours = dict(run(1, "failure", 1), head_repository={"full_name": "org/app"})
+        fork = dict(run(2, "failure", 2), head_repository={"full_name": "someone/app"})
+        self.assertEqual(failed_in_a_row([ours, fork], 99, head_repo="org/app"), 1)
+
 
 class Decide(unittest.TestCase):
     def fetch(self, runs):
@@ -60,6 +65,11 @@ class Decide(unittest.TestCase):
     def test_runs_below_the_limit(self):
         code, level, _, count = decide("pull_request", {"pull_request": PR}, self.fetch([run(1, "failure", 1)]), 99, 2, "ci-retry")
         self.assertEqual((code, level, count), (0, "info", 1))
+
+    def test_counts_only_runs_from_the_pull_requests_repository(self):
+        pr = dict(PR, head={"ref": "fix", "repo": {"full_name": "org/app"}})
+        fork = [dict(run(n, "failure", n), head_repository={"full_name": "someone/app"}) for n in (1, 2)]
+        self.assertEqual(decide("pull_request", {"pull_request": pr}, self.fetch(fork), 99, 2, "ci-retry")[0], 0)
 
     def test_the_label_lets_ci_run(self):
         pr = dict(PR, labels=[{"name": "ci-retry"}])

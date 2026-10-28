@@ -18,17 +18,20 @@ import urllib.request
 FAILED = {"failure", "timed_out", "startup_failure"}
 
 
-def failed_in_a_row(runs, current_run_id, since=None):
+def failed_in_a_row(runs, current_run_id, since=None, head_repo=None):
     """Count the latest finished runs that failed, back to the last pass.
 
     `runs` are workflow runs from GitHub's API in any order. The current run,
-    unfinished runs and runs created before `since` (the pull request's
-    creation time, so an earlier pull request on the same branch is ignored)
-    are left out.
+    unfinished runs, runs from another repository's branch of the same name
+    (a fork) and runs created before `since` (the pull request's creation
+    time, so an earlier pull request on the same branch is ignored) are left
+    out.
     """
     count = 0
     for run in sorted(runs, key=lambda r: r["created_at"], reverse=True):
         if run["id"] == current_run_id or run.get("status") != "completed":
+            continue
+        if head_repo and (run.get("head_repository") or {}).get("full_name") != head_repo:
             continue
         if since and run["created_at"] < since:
             break
@@ -66,7 +69,8 @@ def decide(event_name, event, fetch_runs, run_id, limit, label):
         runs = fetch_runs(pr)
     except Exception as error:  # noqa: BLE001 - any lookup failure lets CI run
         return 0, "warning", f"Could not read this pull request's earlier runs ({error}), so CI runs.", None
-    count = failed_in_a_row(runs, run_id, pr.get("created_at"))
+    head_repo = ((pr.get("head") or {}).get("repo") or {}).get("full_name")
+    count = failed_in_a_row(runs, run_id, pr.get("created_at"), head_repo)
     if count >= limit:
         return 1, "error", stop_message(count, label), count
     return 0, "info", f"{count} failed run(s) in a row before this one (CI stops at {limit}), so CI runs.", count
