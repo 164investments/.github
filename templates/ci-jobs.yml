@@ -13,6 +13,9 @@
 #   check runs here once, never again in the deploy's build.
 # - `check` is the one status to require. It passes when every job passed or
 #   was skipped, and fails when any failed or `changes` didn't run.
+# - After the pull request's last 2 runs failed, `changes` fails at once, so
+#   no other job runs and `check` fails, until a person adds the `ci-retry`
+#   label. `changes` needs `actions: read` to see the earlier runs.
 # - Every job repeats checkout, install and setup. Put small checks in one
 #   job, install only what a job needs, and add shards only when measuring
 #   the same commits shows a faster run without much more compute.
@@ -39,12 +42,17 @@ jobs:
     runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 3
     permissions:
+      actions: read
       contents: read
       pull-requests: read
     outputs:
       web: ${{ steps.files.outputs.web }}
       worker: ${{ steps.files.outputs.worker }}
     steps:
+      # After the pull request's last 2 runs failed, stop before installing
+      # anything: fix the failure locally, then a person adds `ci-retry`.
+      - uses: 164investments/.github/actions/stop-after-failures@main
+
       - name: Which jobs do the changed files need?
         id: files
         env:
