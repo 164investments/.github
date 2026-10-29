@@ -1,97 +1,42 @@
 # Organization defaults
 
-Shared CI workflows and default community files for this organization's repositories.
+Default community files and CI starter files for this organization's repositories.
 
 This repository is public, because GitHub only applies default community files from a public `.github` repository. Keep it generic: no repository names, hostnames, people, business details or secrets.
 
-## Reusable workflows
+## CI runs on Vercel
 
-Call them from a repository's own workflow. Pin to `@main`, or to a commit SHA for a fixed version.
+Private repositories run their checks on [Vercel CI](https://vercel.com/docs/ci) and keep no GitHub Actions workflows. Scheduled jobs are Vercel Cron Jobs, with a Vercel Sandbox when a job needs one, and deploys are Vercel's own build of the production branch. Public repositories can't use Vercel CI and keep GitHub's free runners.
 
-| Workflow | What it does |
+Set up a repository with these starter files:
+
+| File | Where it goes | What it does |
+| --- | --- | --- |
+| `templates/turbo.json` | `turbo.json` | Tags each check `"ci"`, which is what Vercel CI runs. Each tagged task is a `package.json` script. Code tasks leave Markdown and `.github/**` out of their inputs, so a docs-only change runs only the format check. Keep the tasks the repository has and delete the rest. |
+| `templates/vercel.json` | `vercel.json` | Builds only `main`, and adds the `ci` block. Keep `"jobs": []`: Vercel's deployment API rejects a `ci` block without it, and the production deploy fails. `ci.tasks` gives a task synthetic placeholder values; never a real secret. |
+| `templates/ruleset.json` | the default branch's ruleset | Requires the `Vercel CI` status from Vercel's GitHub app (8329), with no up-to-date rule and no bypass actors. |
+
+The steps:
+
+1. Link the repository to a Vercel project. A repository that deploys nothing sets `"git": {"deploymentEnabled": false}` instead.
+2. Add Turborepo with the repository's package manager, set `packageManager` in `package.json`, and add `.turbo` to `.gitignore`.
+3. Copy `templates/turbo.json` and `templates/vercel.json`, and keep only what the repository needs.
+4. Turn Vercel CI on: `vercel ci enable --remote origin --scope <team>`. Then push once; every push to any branch starts a run.
+5. Once `Vercel CI` passes, add the ruleset: `gh api -X POST repos/<owner>/<repo>/rulesets --input templates/ruleset.json` (use the default branch's name if it isn't `main`).
+
+Type-check once, in CI: a Next.js app sets `typescript: { ignoreBuildErrors: true }` in `next.config`, and no `build` script chains a type check.
+
+## Retired workflows
+
+These reusable workflows and the step below are retired. Each stays only until its last caller moves to Vercel; then it is deleted. Don't add a new caller.
+
+| File | What it did |
 | --- | --- |
-| `node-check.yml` | Runs `npm ci`, then `npm run check` when that script exists. Otherwise it runs each of `lint`, `typecheck`, `test` and `build` that exists. It fails when none exists. |
-| `python-check.yml` | Installs the project, then runs Ruff, mypy when configured, and pytest or unittest. A `check-command` input replaces the automatic steps. |
-| `gitleaks.yml` | Scans for committed secrets with the gitleaks CLI. Pull requests scan their own commits, pushes scan the pushed commits, and other events scan the whole history. Findings are redacted in the log. |
-| `supabase-migrations.yml` | Replays every `.sql` file in the migrations folder, in file-name order, into a throwaway Postgres 17 service container. The default image is Supabase's Postgres image, so the `auth` and `storage` schemas and the standard roles exist. |
-| `runners.yml` | Fails when a job in the caller's `.github/workflows` runs off a Blacksmith runner. A job that cannot run on Blacksmith keeps its runner with `# github-runner: <reason>` on the same line. It also fails a push trigger on every branch or on a branch pattern such as `feat/**`, and a pull-request workflow without a `concurrency` group that cancels the older run. |
-| `already-tested.yml` | For a push: answers `tested: 'true'` when the pushed tree already passed the calling workflow on the pull request it merged, so the caller's other jobs can skip a second run of the same checks. A failed lookup, a merge that changed the tree, or any other event answers false, so the checks run. |
+| `.github/workflows/runners.yml` | Failed a pull request whose workflows ran off a Blacksmith runner, pushed CI on every branch, or let a superseded run go on. |
+| `.github/workflows/already-tested.yml` | Let a push to `main` skip the checks its pull request already passed. |
+| `actions/stop-after-failures` | Stopped a pull request's CI after its last 2 runs failed, until a person added `ci-retry`. |
 
-Each workflow's job is named `check`, `gitleaks`, `supabase-migrations`, `runners` or `already-tested`, so a caller job named `check` shows up as `check / check`.
-
-Every workflow runs on a Blacksmith runner (`blacksmith-2vcpu-ubuntu-2404`) unless the caller passes a `runner` input. A public repository can pass `runner: ubuntu-latest`, which GitHub runs free. Jobs a repository writes itself use the same Blacksmith labels, and `runners.yml` checks them.
-
-### Example
-
-```yaml
-name: ci
-
-on:
-  pull_request:
-  push:
-    branches: [main]
-
-permissions:
-  contents: read
-
-jobs:
-  check:
-    uses: 164investments/.github/.github/workflows/node-check.yml@main
-    with:
-      node-version: "24"
-
-  secrets:
-    uses: 164investments/.github/.github/workflows/gitleaks.yml@main
-
-  migrations:
-    uses: 164investments/.github/.github/workflows/supabase-migrations.yml@main
-    with:
-      migrations-path: supabase/migrations
-
-  runners:
-    uses: 164investments/.github/.github/workflows/runners.yml@main
-```
-
-To skip a push's second run of checks its pull request already passed, call `already-tested.yml` on push only and gate the other jobs on it:
-
-```yaml
-  tested:
-    if: github.event_name == 'push'
-    permissions:
-      actions: read
-      contents: read
-      pull-requests: read
-    uses: 164investments/.github/.github/workflows/already-tested.yml@main
-
-  check:
-    needs: tested
-    if: ${{ !cancelled() && needs.tested.outputs.tested != 'true' }}
-    uses: 164investments/.github/.github/workflows/node-check.yml@main
-```
-
-Give every job further down the chain a status function as well (`if: ${{ !cancelled() && ... }}`). A bare `if:` implies `success()` of the whole chain, and `tested` is skipped on every pull request, so those jobs would be skipped too.
-
-The inputs of each workflow are listed and described at the top of its file.
-
-## Shared steps
-
-| Step | What it does |
-| --- | --- |
-| `actions/stop-after-failures` | On a pull request, fails the job before anything else runs when the same workflow's last 2 finished runs on that pull request failed. Cancelled and skipped runs don't count, a passing run starts the count again, and a failed lookup lets CI run. A person lifts it for one pull request with the `ci-retry` label. Inputs: `limit` (default 2, 0 turns it off), `label` and `token`. |
-
-Put it first in the job every other job depends on, and give that job `actions: read`:
-
-```yaml
-  changes:
-    permissions:
-      actions: read
-      contents: read
-      pull-requests: read
-    steps:
-      - uses: 164investments/.github/actions/stop-after-failures@main
-```
-
-That job fails, so the aggregate `check` fails with it. Don't put it in a job whose failure would only skip the required check: GitHub counts a skipped required check as passed. Create the `ci-retry` label in the repository so a person can add it.
+`node-check.yml`, `python-check.yml`, `gitleaks.yml` and `supabase-migrations.yml` were deleted on 2026-10-29, when no repository called them. Their checks now run as Turborepo tasks in each repository.
 
 ## Default community files
 
@@ -100,35 +45,13 @@ GitHub uses these for any repository in the organization that has no file of its
 - `SECURITY.md`: how to report a vulnerability.
 - `.github/pull_request_template.md`: the pull request template.
 
-## Starter files
+## Other starter files
 
 GitHub doesn't apply these by default, so copy them into a repository and edit them:
 
 - `templates/CODEOWNERS` goes to `.github/CODEOWNERS`.
 - `templates/dependabot.yml` goes to `.github/dependabot.yml`.
-- `templates/ci.yml` or `templates/ci-jobs.yml` goes to `.github/workflows/ci.yml` (below).
-
-## CI shape
-
-Every check runs before merge, once per finished change, and the deploy only ships what CI already checked.
-
-- One workflow, `.github/workflows/ci.yml`, runs on a ready pull request: the type check, lint, tests and the exact build the deploy runs. A draft runs nothing. Workflows that are not pull-request checks (schedules, deploys, releases) keep their own files.
-- `templates/ci.yml` is for a repository whose checks fit one job of a few minutes. That job is `check`. When the pull request changes only top-level Markdown or Markdown under `docs/`, it runs only the format check, which covers Markdown, and skips the type check, lint, tests and build.
-- `templates/ci-jobs.yml` is for several jobs. A `changes` job reads the pull request's file list and each job runs only when its files change; a path no rule names, and every event that is not a pull request, runs everything. The small checks share one job that also runs for docs-only changes, for the format check. A `check` job always runs and passes when every job passed or was skipped.
-- After a pull request's last 2 runs failed, the first job stops (`actions/stop-after-failures`, above) until a person adds `ci-retry`. CI checks a finished fix; it is not where an author finds one.
-- Require `check` on the default branch. Filter jobs, never the workflow: a workflow-level `paths` filter leaves a required check waiting forever.
-- Type-check once, in CI. A Next.js app sets `typescript: { ignoreBuildErrors: true }` in `next.config`, and no `build` script chains a type check.
-- Vercel builds only the production branch. In the `vercel.json` at the project's root directory:
-
-  ```json
-  {
-    "$schema": "https://openapi.vercel.sh/vercel.json",
-    "git": { "deploymentEnabled": { "**": false, "main": true } }
-  }
-  ```
-
-  Any branch that matches a `true` rule deploys, so `main` still deploys and every other branch, including pull-request branches, gets no deployment. Use the project's production branch name in place of `main`.
 
 ## Changing this repository
 
-Open a pull request. The `self-test` workflow calls every reusable workflow against the small projects in `tests/fixtures/`, and it must pass before merge.
+Open a pull request. The `self-test` workflow lints the workflow files and calls the retired workflows and the step against `tests/`. It runs on GitHub's free runners, because this repository is public.

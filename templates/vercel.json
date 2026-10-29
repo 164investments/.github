@@ -1,0 +1,25 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": {
+    "deploymentEnabled": {
+      "**": false,
+      "main": true
+    }
+  },
+  "ci": {
+    "bootstrapping": {
+      "installEnv": {}
+    },
+    "jobs": [],
+    "tasks": [
+      {
+        "name": "build",
+        "env": {
+          "NODE_OPTIONS": {
+            "constant": { "value": "--max-old-space-size=3072" }
+          }
+        }
+      }
+    ]
+  }
+}
