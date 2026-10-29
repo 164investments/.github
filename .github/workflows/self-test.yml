@@ -1,8 +1,9 @@
 name: self-test
 
-# Calls every reusable workflow against the fixtures in tests/fixtures, and
-# lints every workflow file. Required before merge. This repository is public,
-# so its own runs use GitHub's free runners (runner: ubuntu-latest).
+# Calls the remaining (retired) reusable workflows and the stop-after-failures
+# step against the fixtures in tests/, and lints every workflow file. Delete
+# it with the last of them. This repository is public, so its own runs use
+# GitHub's free runners (runner: ubuntu-latest).
 
 on:
   pull_request:
@@ -39,69 +40,6 @@ jobs:
             && grep " ${tarball}\$" "actionlint_${VERSION}_checksums.txt" | sha256sum -c - \
             && tar -xzf "$tarball" actionlint)
           "$dir/actionlint" -color
-
-  node-check-script:
-    name: node-check (check script)
-    uses: ./.github/workflows/node-check.yml
-    with:
-      runner: ubuntu-latest
-      working-directory: tests/fixtures/node-check-script
-
-  node-scripts:
-    name: node-check (separate scripts)
-    uses: ./.github/workflows/node-check.yml
-    with:
-      runner: ubuntu-latest
-      working-directory: tests/fixtures/node-scripts
-      env: |
-        FIXTURE_FLAG=1
-
-  python:
-    name: python-check
-    uses: ./.github/workflows/python-check.yml
-    with:
-      runner: ubuntu-latest
-      working-directory: tests/fixtures/python-project
-
-  # Python 3.9, the oldest the team-agents scripts support, has no build for
-  # Ubuntu 26.04, which ubuntu-latest became on 2026-10-21.
-  python-command:
-    name: python-check (check-command)
-    uses: ./.github/workflows/python-check.yml
-    with:
-      runner: ubuntu-24.04
-      working-directory: tests/fixtures/python-project
-      python-version: "3.9"
-      check-command: python -m unittest discover -s tests -v
-
-  gitleaks:
-    name: gitleaks
-    uses: ./.github/workflows/gitleaks.yml
-    with:
-      runner: ubuntu-latest
-
-  gitleaks-history:
-    name: gitleaks (history)
-    uses: ./.github/workflows/gitleaks.yml
-    with:
-      runner: ubuntu-latest
-      mode: history
-
-  migrations:
-    name: supabase-migrations
-    uses: ./.github/workflows/supabase-migrations.yml
-    with:
-      runner: ubuntu-latest
-      migrations-path: tests/fixtures/migrations
-
-  migrations-plain-postgres:
-    name: supabase-migrations (plain Postgres)
-    uses: ./.github/workflows/supabase-migrations.yml
-    with:
-      runner: ubuntu-latest
-      migrations-path: tests/fixtures/migrations
-      image: postgres:17
-      prelude: tests/fixtures/supabase-shape.sql
 
   runners:
     name: runners

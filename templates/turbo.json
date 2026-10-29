@@ -1,0 +1,30 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "tasks": {
+    "format:check": {
+      "tags": ["ci"],
+      "outputs": []
+    },
+    "typecheck": {
+      "tags": ["ci"],
+      "inputs": ["$TURBO_DEFAULT$", "!*.md", "!docs/**/*.md", "!.github/**"],
+      "outputs": []
+    },
+    "lint": {
+      "tags": ["ci"],
+      "inputs": ["$TURBO_DEFAULT$", "!*.md", "!docs/**/*.md", "!.github/**"],
+      "outputs": []
+    },
+    "test": {
+      "tags": ["ci"],
+      "inputs": ["$TURBO_DEFAULT$", "!*.md", "!docs/**/*.md", "!.github/**"],
+      "outputs": []
+    },
+    "build": {
+      "tags": ["ci"],
+      "inputs": ["$TURBO_DEFAULT$", "!*.md", "!docs/**/*.md", "!.github/**"],
+      "env": ["NODE_OPTIONS"],
+      "outputs": []
+    }
+  }
+}

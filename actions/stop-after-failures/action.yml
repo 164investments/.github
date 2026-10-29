@@ -1,6 +1,7 @@
 name: stop-after-failures
 description: >-
-  Fails a pull request's CI run before its checks start when the same
+  RETIRED (2026-10-29): checks run on Vercel CI; don't add a new caller, and
+  delete this step once no open pull request uses it. Fails a pull request's CI run before its checks start when the same
   workflow's last runs on that pull request failed several times in a row, so
   CI checks a fix instead of being the place to find one.
 

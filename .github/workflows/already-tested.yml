@@ -1,5 +1,10 @@
 name: already-tested
 
+# RETIRED (2026-10-29). Checks now run on Vercel CI, which reruns nothing a
+# pull request already passed. It stays only until its last caller moves;
+# then delete this file. Don't add a new caller.
+#
+
 # Reusable check for a push to a branch: did the calling workflow already pass
 # on this exact tree, in the pull request that the push merged? A pull request
 # tests its branch, so a push to main that only lands that branch would run

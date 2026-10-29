@@ -1,5 +1,11 @@
 name: runners
 
+# RETIRED (2026-10-29). Private repositories run their checks on Vercel CI and
+# keep no GitHub Actions workflows, so there is no runner left to check. It
+# stays only until the last repository that calls it deletes its caller;
+# then delete this file. Don't add a new caller.
+#
+
 # Fails when a job in the calling repository's workflows runs on anything other
 # than a Blacksmith runner. A job that cannot run on Blacksmith keeps its runner
 # with "# github-runner: <reason>" on the same line.
