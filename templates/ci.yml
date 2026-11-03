@@ -1,0 +1,30 @@
+name: CI
+
+# Runs this repository's Vercel CI configuration (turbo.json tasks tagged "ci",
+# the vercel.json "ci" block) on the organization's self-hosted runners.
+# Replace main with the default branch's name if it differs.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer pull-request push cancels the older run; every main push runs to the end.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  ci:
+    name: CI
+    runs-on: [self-hosted, studio]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: 164investments/.github/actions/studio-ci@STUDIO_CI_SHA

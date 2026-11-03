@@ -4,31 +4,34 @@ Default community files and CI starter files for this organization's repositorie
 
 This repository is public, because GitHub only applies default community files from a public `.github` repository. Keep it generic: no repository names, hostnames, people, business details or secrets.
 
-## CI runs on Vercel
+## CI runs on the self-hosted runners
 
-Private repositories run their checks on [Vercel CI](https://vercel.com/docs/ci) and keep no GitHub Actions workflows. Scheduled jobs are Vercel Cron Jobs, with a Vercel Sandbox when a job needs one, and deploys are Vercel's own build of the production branch. Public repositories can't use Vercel CI and keep GitHub's free runners.
+Private repositories run their checks on the organization's self-hosted runners (label `studio`, runner group restricted to private repositories), natively: no containers. Each repository keeps its checks as Turborepo tasks tagged `"ci"` and its install command and placeholder env in `vercel.json`'s `ci` block, and `templates/ci.yml` runs them through `actions/studio-ci`, the way Vercel CI did. Scheduled jobs are Vercel Cron Jobs, with a Vercel Sandbox when a job needs one, and deploys are Vercel's own build of the production branch. Public repositories keep GitHub's free runners and never use the self-hosted ones.
 
 Set up a repository with these starter files:
 
 | File | Where it goes | What it does |
 | --- | --- | --- |
-| `templates/turbo.json` | `turbo.json` | Tags each check `"ci"`, which is what Vercel CI runs. Each tagged task is a `package.json` script. Code tasks leave Markdown and `.github/**` out of their inputs, so a docs-only change runs only the format check. Keep the tasks the repository has and delete the rest. |
-| `templates/vercel.json` | `vercel.json` | Builds only `main`, and adds the `ci` block. Keep `"jobs": []`: Vercel's deployment API rejects a `ci` block without it, and the production deploy fails. `ci.tasks` gives a task synthetic placeholder values; never a real secret. |
-| `templates/ruleset.json` | the default branch's ruleset | Requires the `Vercel CI` status from Vercel's GitHub app (8329), with no up-to-date rule and no bypass actors. |
+| `templates/turbo.json` | `turbo.json` | Tags each check `"ci"`, which is what CI runs. Each tagged task is a `package.json` script. Code tasks leave Markdown and `.github/**` out of their inputs, so a docs-only change runs only the format check. Keep the tasks the repository has and delete the rest. |
+| `templates/vercel.json` | `vercel.json` | Builds only `main`, and adds the `ci` block: `bootstrapping.installCommand` (default: the lockfile's install) and `ci.tasks` env. Keep `"jobs": []`: Vercel's deployment API rejects a `ci` block without it, and the production deploy fails. `ci.tasks` gives a task synthetic placeholder values; only `constant` values, never a real secret. |
+| `templates/ci.yml` | `.github/workflows/ci.yml` | Runs every task tagged `"ci"` on the self-hosted runners and reports one check, `CI`. |
+| `templates/ruleset.json` | the default branch's ruleset | Requires the `CI` check from GitHub Actions (15368), with no up-to-date rule and no bypass actors. |
 
 The steps:
 
-1. Link the repository to a Vercel project. A repository that deploys nothing sets `"git": {"deploymentEnabled": false}` instead.
+1. Link the repository to a Vercel project for deploys. A repository that deploys nothing sets `"git": {"deploymentEnabled": false}` instead.
 2. Add Turborepo with the repository's package manager, set `packageManager` in `package.json`, and add `.turbo` to `.gitignore`.
-3. Copy `templates/turbo.json` and `templates/vercel.json`, and keep only what the repository needs.
-4. Turn Vercel CI on: `vercel ci enable --remote origin --scope <team>`. Then push once; every push to any branch starts a run.
-5. Once `Vercel CI` passes, add the ruleset: `gh api -X POST repos/<owner>/<repo>/rulesets --input templates/ruleset.json` (use the default branch's name if it isn't `main`).
+3. Copy `templates/turbo.json`, `templates/vercel.json` and `templates/ci.yml`, and keep only what the repository needs.
+4. Open a pull request. Once `CI` passes, add the ruleset: `gh api -X POST repos/<owner>/<repo>/rulesets --input templates/ruleset.json` (use the default branch's name if it isn't `main`).
+5. Keep Vercel CI off for the repository: `PATCH /v1/vercel-ci/repository-settings?provider=github&organizationId=<owner>&repository=<repo>` with `{"ciEnabled": false}`.
+
+`node actions/studio-ci/run.mjs --plan`, run from a repository's root, prints its install command and task groups without running them.
 
 Type-check once, in CI: a Next.js app sets `typescript: { ignoreBuildErrors: true }` in `next.config`, and no `build` script chains a type check.
 
 ## Retired workflows
 
-These reusable workflows and the step below are retired. Each stays only until its last caller moves to Vercel; then it is deleted. Don't add a new caller.
+These reusable workflows and the step below are retired. Each stays only until its last caller is gone; then it is deleted. Don't add a new caller.
 
 | File | What it did |
 | --- | --- |

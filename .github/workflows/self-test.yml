@@ -72,6 +72,17 @@ jobs:
           TESTED: ${{ needs.already-tested.outputs.tested }}
         run: test "$TESTED" = false
 
+  studio-ci-tests:
+    name: studio-ci (unit tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Env, install and task grouping
+        run: node --test tests/studio-ci/
+
   stop-after-failures-tests:
     name: stop-after-failures (unit tests)
     runs-on: ubuntu-latest
