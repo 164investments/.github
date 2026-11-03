@@ -129,12 +129,17 @@ async function run(spec) {
     { stdio: ["ignore", "ignore", "inherit"] },
   );
   rmSync(pwfile, { force: true });
+  if (initdb.error) console.error(`studio-ci docker: initdb: ${initdb.error.message} (is PostgreSQL on the runner's PATH?)`);
   if (initdb.status !== 0) stop(1);
   server = spawn(
     "postgres",
     ["-D", join(data, "db"), "-p", String(spec.port), "-k", data, "-c", "listen_addresses=localhost", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off", ...spec.serverArgs],
     { stdio: "inherit" },
   );
+  server.on("error", (error) => {
+    console.error(`studio-ci docker: postgres: ${error.message}`);
+    stop(1);
+  });
   writeFileSync(join(lock, "server"), String(server.pid));
   server.on("exit", (code) => stop(code ?? 1));
   const env = { ...process.env, PGPASSWORD: spec.env.POSTGRES_PASSWORD || "" };
