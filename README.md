@@ -25,6 +25,8 @@ The steps:
 4. Open a pull request. Once `CI` passes, add the ruleset: `gh api -X POST repos/<owner>/<repo>/rulesets --input templates/ruleset.json` (use the default branch's name if it isn't `main`).
 5. Keep Vercel CI off for the repository: `PATCH /v1/vercel-ci/repository-settings?provider=github&organizationId=<owner>&repository=<repo>` with `{"ciEnabled": false}`.
 
+A task that runs `docker run <postgres image>` (a `postgres` task next to the tests) gets a native PostgreSQL server instead: `actions/studio-ci/bin/docker` stands in for `docker run`, `exec`, `rm`, `stop` and `kill` for PostgreSQL only, serves the image's major version from the runner's PostgreSQL, and makes jobs that want the same host port take turns. Any other Docker use fails and says so.
+
 `node actions/studio-ci/run.mjs --plan`, run from a repository's root, prints its install command and task groups without running them.
 
 Type-check once, in CI: a Next.js app sets `typescript: { ignoreBuildErrors: true }` in `next.config`, and no `build` script chains a type check.

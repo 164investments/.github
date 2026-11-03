@@ -34,6 +34,8 @@ runs:
         TURBO_TELEMETRY_DISABLED: "1"
         # Vercel CI's machines run in UTC; keep that unless the repository's job sets TZ.
         TZ: ${{ env.TZ || 'UTC' }}
+      # bin/docker runs `docker run <postgres image>` as a native PostgreSQL server (bin/docker.mjs).
       run: |
         export TURBO_CACHE_DIR="$RUNNER_TOOL_CACHE/turbo-cache/$GITHUB_REPOSITORY"
+        export PATH="$GITHUB_ACTION_PATH/bin:$PATH"
         node "$GITHUB_ACTION_PATH/run.mjs"
