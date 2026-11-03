@@ -1,0 +1,3 @@
+#!/bin/sh
+# See docker.mjs: the PostgreSQL stand-in for docker on the self-hosted runners.
+exec node "$(dirname "$0")/docker.mjs" "$@"

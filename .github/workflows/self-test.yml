@@ -81,7 +81,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Env, install and task grouping
-        run: node --test tests/studio-ci/run.test.mjs
+        run: node --test tests/studio-ci/run.test.mjs tests/studio-ci/docker.test.mjs
 
   stop-after-failures-tests:
     name: stop-after-failures (unit tests)
