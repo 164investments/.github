@@ -1,0 +1,39 @@
+name: studio-ci
+description: >-
+  Runs a repository's Vercel CI configuration (turbo.json tasks tagged "ci" and
+  the vercel.json "ci" block) natively on a self-hosted runner.
+
+# Use it after checkout, in a job on the self-hosted runners (templates/ci.yml):
+#
+#   - uses: actions/checkout@<sha>
+#     with:
+#       ref: ${{ github.event.pull_request.head.sha || github.sha }}
+#       persist-credentials: false
+#   - uses: 164investments/.github/actions/studio-ci@<sha>
+#
+# The runner supplies Node, the package managers and any databases on its PATH.
+# Turborepo's cache lives in the runner's tool cache, one per repository, so
+# checkout's clean keeps it.
+
+inputs:
+  token:
+    description: Read-only token the install step's git-history scripts fetch with.
+    default: ${{ github.token }}
+  concurrency:
+    description: Turborepo tasks to run at once.
+    default: "4"
+
+runs:
+  using: composite
+  steps:
+    - name: Run every task tagged ci
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        STUDIO_CI_CONCURRENCY: ${{ inputs.concurrency }}
+        TURBO_TELEMETRY_DISABLED: "1"
+        # Vercel CI's machines run in UTC; keep that unless the repository's job sets TZ.
+        TZ: ${{ env.TZ || 'UTC' }}
+      run: |
+        export TURBO_CACHE_DIR="$RUNNER_TOOL_CACHE/turbo-cache/$GITHUB_REPOSITORY"
+        node "$GITHUB_ACTION_PATH/run.mjs"
