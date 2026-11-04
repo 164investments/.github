@@ -30,12 +30,23 @@ export function installCommand(config, has = existsSync) {
   return "npm ci";
 }
 
-/** The tagged tasks, grouped by the env their ci.tasks entry gives them (matched by full id or task name). */
-export function taskGroups(turbo, config) {
+const matches = (id, names) => names.some((name) => name === id || name === id.split("#").pop());
+const list = (value) => (value ?? "").split(/[\s,]+/).filter(Boolean);
+
+/**
+ * The tagged tasks, grouped by the env their ci.tasks entry gives them (matched by full id or task
+ * name). `include` keeps only the named tasks; `exclude` leaves the named ones out.
+ */
+export function taskGroups(turbo, config, { include = [], exclude = [] } = {}) {
   const tasks = turbo.tasks ?? {};
   const groups = new Map();
-  for (const id of Object.keys(tasks).filter((id) => tasks[id].tags?.includes("ci"))) {
-    const entry = (config.tasks ?? []).find((t) => t.name === id || t.name === id.split("#").pop());
+  for (const id of Object.keys(tasks).filter(
+    (id) =>
+      tasks[id].tags?.includes("ci") &&
+      (include.length === 0 || matches(id, include)) &&
+      !matches(id, exclude),
+  )) {
+    const entry = (config.tasks ?? []).find((t) => matches(id, [t.name]));
     const env = constants(entry?.env);
     const key = JSON.stringify(Object.entries(env).sort());
     if (!groups.has(key)) groups.set(key, { env, tasks: [] });
@@ -53,12 +64,19 @@ function run(command, args, env, shell = false) {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const install = installCommand(ci);
-  const groups = taskGroups(read("turbo.json"), ci);
+  const filter = { include: list(process.env.STUDIO_CI_INCLUDE), exclude: list(process.env.STUDIO_CI_EXCLUDE) };
+  const groups = taskGroups(read("turbo.json"), ci, filter);
   if (process.argv.includes("--plan")) {
     console.log(JSON.stringify({ install, groups }, null, 2));
     process.exit(0);
   }
-  if (groups.length === 0) throw new Error("studio-ci: turbo.json has no task tagged ci");
+  if (groups.length === 0) {
+    if (filter.include.length || filter.exclude.length) {
+      console.log("studio-ci: no task tagged ci is left after include/exclude; nothing to run");
+      process.exit(0);
+    }
+    throw new Error("studio-ci: turbo.json has no task tagged ci");
+  }
   // Install scripts that read git history fetch from GitHub; give them the job's read-only token.
   const auth = process.env.GH_TOKEN
     ? {

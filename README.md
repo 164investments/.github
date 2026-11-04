@@ -15,6 +15,7 @@ Set up a repository with these starter files:
 | `templates/turbo.json` | `turbo.json` | Tags each check `"ci"`, which is what CI runs. Each tagged task is a `package.json` script. Code tasks leave Markdown and `.github/**` out of their inputs, so a docs-only change runs only the format check. Keep the tasks the repository has and delete the rest. |
 | `templates/vercel.json` | `vercel.json` | Builds only `main`, and adds the `ci` block: `bootstrapping.installCommand` (default: the lockfile's install) and `ci.tasks` env. Keep `"jobs": []`: Vercel's deployment API rejects a `ci` block without it, and the production deploy fails. `ci.tasks` gives a task synthetic placeholder values; only `constant` values, never a real secret. |
 | `templates/ci.yml` | `.github/workflows/ci.yml` | Runs every task tagged `"ci"` on the self-hosted runners and reports one check, `CI`. |
+| `templates/ci-with-linux.yml` | `.github/workflows/ci.yml`, instead of `ci.yml` | For checks that need Linux or Docker (a container image build, a local Supabase stack): those tasks run on GitHub's Ubuntu runner, the rest on the self-hosted runners, and `CI` passes only when both do. |
 | `templates/ruleset.json` | the default branch's ruleset | Requires the `CI` check from GitHub Actions (15368), with no up-to-date rule and no bypass actors. |
 
 The steps:

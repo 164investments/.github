@@ -38,3 +38,11 @@ test("tagged tasks are grouped by the env their ci.tasks entry gives them", () =
   ]);
   assert.deepEqual(taskGroups({ tasks: { dev: {} } }, {}), []);
 });
+
+test("include keeps only the named tasks and exclude leaves them out", () => {
+  const turbo = { tasks: { typecheck: { tags: ["ci"] }, "//#build:image": { tags: ["ci"] }, "web#test": { tags: ["ci"] } } };
+  const ids = (groups) => groups.flatMap((g) => g.tasks);
+  assert.deepEqual(ids(taskGroups(turbo, {}, { exclude: ["build:image"] })), ["typecheck", "web#test"]);
+  assert.deepEqual(ids(taskGroups(turbo, {}, { include: ["//#build:image", "test"] })), ["//#build:image", "web#test"]);
+  assert.deepEqual(taskGroups(turbo, {}, { include: ["missing"] }), []);
+});

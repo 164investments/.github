@@ -1,0 +1,65 @@
+name: CI
+
+# For a repository with checks that need Linux or Docker (building a container
+# image, a local Supabase stack): every other task tagged "ci" runs on the
+# self-hosted runners, the LINUX_TASKS run on GitHub's Ubuntu runner, and the CI
+# job, which the default branch requires, passes only when both do.
+# Replace main with the default branch's name, and list the tasks.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  LINUX_TASKS: build:image
+
+jobs:
+  studio:
+    name: Studio
+    runs-on: [self-hosted, studio]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: 164investments/.github/actions/studio-ci@STUDIO_CI_SHA
+        with:
+          exclude: ${{ env.LINUX_TASKS }}
+
+  linux:
+    name: Linux
+    runs-on: ubuntu-24.04 # github-runner: needs Docker
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24
+      - uses: 164investments/.github/actions/studio-ci@STUDIO_CI_SHA
+        with:
+          include: ${{ env.LINUX_TASKS }}
+
+  ci:
+    name: CI
+    needs: [studio, linux]
+    if: always()
+    runs-on: [self-hosted, studio]
+    timeout-minutes: 2
+    steps:
+      - name: Both jobs passed
+        env:
+          STUDIO: ${{ needs.studio.result }}
+          LINUX: ${{ needs.linux.result }}
+        run: test "$STUDIO" = success && test "$LINUX" = success
