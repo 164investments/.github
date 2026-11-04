@@ -8,7 +8,8 @@
 //   docker rm -f N | docker stop N | docker kill N   stops N
 //
 // Names are per runner (RUNNER_TEMP). Jobs on one machine that ask for the same host port take
-// turns: the second server starts when the first stops, and `docker exec` waits for it.
+// turns: the second server starts when the first stops (at most STUDIO_CI_PORT_WAIT_MIN minutes,
+// default 20), and `docker exec` waits for it.
 // Anything else exits 127 and says it isn't available.
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -73,7 +74,13 @@ const read = (name) => (existsSync(record(name)) ? JSON.parse(readFileSync(recor
 async function takePort(port) {
   mkdirSync(locks, { recursive: true });
   const lock = join(locks, String(port));
-  for (;;) {
+  const minutes = Number(process.env.STUDIO_CI_PORT_WAIT_MIN || 20);
+  const started = Date.now();
+  for (let waited = 0; ; waited++) {
+    if (Date.now() - started > minutes * 60000)
+      fail(`port ${port} stayed in use by another job for ${minutes} minutes; giving up`, 1);
+    if (waited > 0 && waited % 30 === 0)
+      console.error(`studio-ci docker: waiting for port ${port}, which another job's server holds (${Math.round((Date.now() - started) / 60000)} min)`);
     try {
       mkdirSync(lock);
       writeFileSync(join(lock, "owner"), String(process.pid));
