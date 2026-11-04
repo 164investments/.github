@@ -55,6 +55,20 @@ export function taskGroups(turbo, config, { include = [], exclude = [] } = {}) {
   return [...groups.values()];
 }
 
+/**
+ * The turbo invocations for the groups: a task that starts a service with `with` runs on its own,
+ * because turbo stops a service it shares between tasks when the first of them finishes. Vercel CI
+ * gave every task its own machine, so tasks were written for a service of their own.
+ */
+export function invocations(groups, turbo) {
+  const tasks = turbo.tasks ?? {};
+  return groups.flatMap(({ env, tasks: ids }) => {
+    const solo = ids.filter((id) => (tasks[id]?.with ?? []).length > 0);
+    const rest = ids.filter((id) => !solo.includes(id));
+    return [...(rest.length ? [{ env, tasks: rest }] : []), ...solo.map((id) => ({ env, tasks: [id] }))];
+  });
+}
+
 function run(command, args, env, shell = false) {
   console.log(`::group::${shell ? command : [command, ...args].join(" ")}`);
   const result = spawnSync(command, args, { stdio: "inherit", shell, env: { ...process.env, ...env } });
@@ -65,7 +79,8 @@ function run(command, args, env, shell = false) {
 if (import.meta.url === `file://${process.argv[1]}`) {
   const install = installCommand(ci);
   const filter = { include: list(process.env.STUDIO_CI_INCLUDE), exclude: list(process.env.STUDIO_CI_EXCLUDE) };
-  const groups = taskGroups(read("turbo.json"), ci, filter);
+  const turboConfig = read("turbo.json");
+  const groups = invocations(taskGroups(turboConfig, ci, filter), turboConfig);
   if (process.argv.includes("--plan")) {
     console.log(JSON.stringify({ install, groups }, null, 2));
     process.exit(0);

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { constants, installCommand, taskGroups } from "../../actions/studio-ci/run.mjs";
+import { constants, installCommand, invocations, taskGroups } from "../../actions/studio-ci/run.mjs";
 
 test("only constant env values are accepted", () => {
   assert.deepEqual(constants({ A: { constant: { value: "x" } }, B: { constant: { value: 3 } } }), { A: "x", B: "3" });
@@ -45,4 +45,12 @@ test("include keeps only the named tasks and exclude leaves them out", () => {
   assert.deepEqual(ids(taskGroups(turbo, {}, { exclude: ["build:image"] })), ["typecheck", "web#test"]);
   assert.deepEqual(ids(taskGroups(turbo, {}, { include: ["//#build:image", "test"] })), ["//#build:image", "web#test"]);
   assert.deepEqual(taskGroups(turbo, {}, { include: ["missing"] }), []);
+});
+
+test("a task with a `with` service runs in its own invocation", () => {
+  const turbo = { tasks: { lint: { tags: ["ci"] }, "//#postgres": { persistent: true }, a: { tags: ["ci"], with: ["//#postgres"] }, b: { tags: ["ci"], with: ["//#postgres"] }, c: { tags: ["ci"] } } };
+  assert.deepEqual(
+    invocations(taskGroups(turbo, {}), turbo).map((i) => i.tasks),
+    [["lint", "c"], ["a"], ["b"]],
+  );
 });
