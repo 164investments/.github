@@ -3,7 +3,8 @@
 //
 //   docker run [--rm] [-d] [--name N] [-p [IP:]HOST:5432] [-e POSTGRES_*=V]... <postgres image> [server args]
 //       starts a throwaway native cluster on HOST (5432 if no -p), in the foreground unless -d
-//   docker exec [flags] N <command> [args]   waits for N's server, then runs command with PGPORT set
+//   docker exec [flags] N <command> [args]   waits for N's server, then runs command with PGPORT and
+//       PGHOST (its socket, which trusts local connections, as inside the container) set
 //   docker rm -f N | docker stop N | docker kill N   stops N
 //
 // Names are per runner (RUNNER_TEMP). Jobs on one machine that ask for the same host port take
@@ -149,7 +150,7 @@ async function run(spec) {
   }
   if (database !== "postgres")
     if (spawnSync("createdb", ["-h", "127.0.0.1", "-p", String(spec.port), "-U", user, database], { env, stdio: "inherit" }).status !== 0) stop(1);
-  writeFileSync(record(spec.name), JSON.stringify({ pid: process.pid, port: spec.port, ready: true }));
+  writeFileSync(record(spec.name), JSON.stringify({ pid: process.pid, port: spec.port, socket: data, ready: true }));
   console.log(`studio-ci docker: ${spec.image} as native PostgreSQL on port ${spec.port} (${spec.name})`);
 }
 
@@ -165,7 +166,7 @@ async function exec(args) {
     if (entry.ready) {
       const result = spawnSync(command[0], execArgs(command.slice(1), entry.port), {
         stdio: "inherit",
-        env: { ...process.env, PGPORT: String(entry.port), PGHOST: process.env.PGHOST || "127.0.0.1" },
+        env: { ...process.env, PGPORT: String(entry.port), PGHOST: entry.socket },
       });
       process.exit(result.status ?? 1);
     }

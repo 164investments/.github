@@ -22,6 +22,12 @@ inputs:
   concurrency:
     description: Turborepo tasks to run at once.
     default: "4"
+  include:
+    description: Only these tasks tagged ci (space- or comma-separated ids or task names), for a job that runs them elsewhere.
+    default: ""
+  exclude:
+    description: Tasks tagged ci to leave out (space- or comma-separated ids or task names).
+    default: ""
 
 runs:
   using: composite
@@ -31,11 +37,14 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.token }}
         STUDIO_CI_CONCURRENCY: ${{ inputs.concurrency }}
+        STUDIO_CI_INCLUDE: ${{ inputs.include }}
+        STUDIO_CI_EXCLUDE: ${{ inputs.exclude }}
         TURBO_TELEMETRY_DISABLED: "1"
         # Vercel CI's machines run in UTC; keep that unless the repository's job sets TZ.
         TZ: ${{ env.TZ || 'UTC' }}
-      # bin/docker runs `docker run <postgres image>` as a native PostgreSQL server (bin/docker.mjs).
+      # Without Docker, bin/docker runs `docker run <postgres image>` as a native PostgreSQL server
+      # (bin/docker.mjs). A runner with Docker (GitHub's Ubuntu runners) keeps the real one.
       run: |
         export TURBO_CACHE_DIR="$RUNNER_TOOL_CACHE/turbo-cache/$GITHUB_REPOSITORY"
-        export PATH="$GITHUB_ACTION_PATH/bin:$PATH"
+        command -v docker >/dev/null 2>&1 || export PATH="$GITHUB_ACTION_PATH/bin:$PATH"
         node "$GITHUB_ACTION_PATH/run.mjs"
