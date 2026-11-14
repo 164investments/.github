@@ -46,7 +46,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: 24
+          node-version: 26
       - uses: 164investments/.github/actions/studio-ci@STUDIO_CI_SHA
         with:
           include: ${{ env.LINUX_TASKS }}
