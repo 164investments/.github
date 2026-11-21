@@ -4,19 +4,18 @@
 - Why:
 - Issue:
 
-## How it was checked
+## Verification
 
-- Checks run, with results:
-- Flow exercised by hand, when it changes what people see:
+- Checks run:
+- Flow exercised (when user-facing):
 
-## Before merge
+## Checklist
 
-- [ ] Tests, configuration, docs and any migrations are in this pull request.
-- [ ] No secrets, environment files, database dumps or customer data are included.
-- [ ] Schema changes go through the shared schema repository, not this one.
-- [ ] This does not deploy to production, or the release is authorized and named below.
+- [ ] Code, tests, configuration, docs, and required migrations are included.
+- [ ] No secrets, env files, database dumps, or customer data are committed.
+- [ ] Shared schema changes live in the shared schema repository.
+- [ ] Rollback / recovery path noted below if this changes runtime behavior.
 
-## Release and rollback
+## Rollback
 
-- Release step after merge:
-- How to undo it:
+- How to undo (if runtime-facing):
